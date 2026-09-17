@@ -108,7 +108,7 @@ export class LoginComponent implements OnInit, OnDestroy {
       this.otpDigits = ['', '', '', '', '', ''];
       this.startCountdown();
       this.toastService.success(`Código de verificación enviado a ${this.selectedCountry.code} ${this.clientPhone}`);
-      
+
       // Focus first digit box after render
       setTimeout(() => {
         const firstInput = document.getElementById('otp-0');
