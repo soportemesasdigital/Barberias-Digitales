@@ -364,6 +364,63 @@
     </div>
   </div>
 
+  <!-- PHONE VERIFICATION MODAL -->
+  <div class="modal-backdrop" *ngIf="showPhoneModal" (click)="closePhoneModal()">
+    <div class="luxury-modal-card" (click)="$event.stopPropagation()">
+      <div class="modal-header">
+        <div class="modal-icon-badge">
+          <span class="material-icons">perm_phone_msg</span>
+        </div>
+        <button type="button" class="modal-close-btn" (click)="closePhoneModal()" title="Cerrar">
+          <span class="material-icons">close</span>
+        </button>
+      </div>
+
+      <div class="modal-body">
+        <h3 class="modal-title">Número de Contacto</h3>
+        <p class="modal-desc">
+          Ingresa tu número de WhatsApp o teléfono para enviarte la confirmación y recordatorios de tu cita.
+        </p>
+
+        <div class="form-group phone-group-modal">
+          <label class="form-label">Número de WhatsApp / Celular</label>
+          <div class="phone-input-combo">
+            <!-- Country Code Dropdown -->
+            <div class="country-picker">
+              <select [(ngModel)]="selectedCountry" class="country-select" title="Selecciona tu país">
+                <option *ngFor="let c of countryCodes" [ngValue]="c">
+                  {{ c.flag }} {{ c.code }}
+                </option>
+              </select>
+              <span class="material-icons select-arrow">expand_more</span>
+            </div>
+            <!-- Phone Number Input -->
+            <input 
+              type="tel" 
+              [(ngModel)]="phoneModalNumber" 
+              (keyup.enter)="savePhoneAndConfirm()"
+              class="form-input phone-number-field" 
+              placeholder="300 123 4567"
+              autocomplete="tel-national"
+              autofocus>
+          </div>
+        </div>
+
+        <div class="modal-actions">
+          <button 
+            type="button" 
+            class="btn btn-primary btn-full btn-lg" 
+            (click)="savePhoneAndConfirm()" 
+            [disabled]="savingPhone || !phoneModalNumber">
+            <span *ngIf="!savingPhone" class="btn-text">Guardar y Confirmar</span>
+            <span *ngIf="!savingPhone" class="material-icons">check_circle</span>
+            <span *ngIf="savingPhone">Guardando...</span>
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+
   <ng-template #loader>
     <div class="loading-wrap">
       <app-loading-spinner message="Cargando opciones..." size="medium"></app-loading-spinner>

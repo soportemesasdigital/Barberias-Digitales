@@ -57,6 +57,20 @@ export class BookingComponent implements OnInit {
   submitting = false;
   userInfo: any = null;
 
+  // Phone Verification Modal
+  showPhoneModal = false;
+  phoneModalNumber = '';
+  savingPhone = false;
+  countryCodes = [
+    { code: '+57', country: 'CO', flag: '🇨🇴', label: 'Colombia (+57)' },
+    { code: '+1', country: 'US', flag: '🇺🇸', label: 'EE.UU. (+1)' },
+    { code: '+52', country: 'MX', flag: '🇲🇽', label: 'México (+52)' },
+    { code: '+34', country: 'ES', flag: '🇪🇸', label: 'España (+34)' },
+    { code: '+54', country: 'AR', flag: '🇦🇷', label: 'Argentina (+54)' },
+    { code: '+56', country: 'CL', flag: '🇨🇱', label: 'Chile (+56)' }
+  ];
+  selectedCountry = this.countryCodes[0];
+
   constructor(
     private bookingService: BookingService,
     private authService: AuthService,
@@ -330,24 +344,114 @@ export class BookingComponent implements OnInit {
   }
 
   // --- Step 4: Confirm Booking ---
-  confirmBooking() {
-    if (!this.userInfo) {
-      this.toastService.warning('Debes identificarte antes de confirmar');
+  async confirmBooking() {
+    this.submitting = true;
+
+    // 1. Obtener la sesión activa de forma asíncrona de Supabase Auth
+    const user = await this.authService.getAuthenticatedUser();
+
+    if (!user) {
+      this.submitting = false;
+      this.toastService.warning('Debes iniciar sesión para agendar tu cita.');
       this.router.navigate(['/login']);
       return;
     }
 
+    // Actualizar userInfo localmente con el usuario autenticado real
+    this.userInfo = {
+      id: user.id,
+      email: user.email,
+      name: user.user_metadata?.['full_name'] || user.user_metadata?.['nombre'] || 'Cliente'
+    };
+
     if (!this.selectedServiceId || !this.selectedBarber || !this.selectedDate || !this.selectedTime) {
+      this.submitting = false;
       this.toastService.error('Faltan datos de la reserva');
       return;
     }
 
-    this.submitting = true;
+    // 2. Consultar fila en public.profiles para telefono y asegurar su existencia
+    try {
+      let { data: profile } = await this.authService.getProfile(user.id);
+      
+      // Si el perfil no existe aún, crearlo/asegurarlo
+      if (!profile) {
+        await this.authService.updateProfile(user.id, {
+          nombre: user.user_metadata?.['full_name'] || user.user_metadata?.['nombre'] || user.email?.split('@')[0] || 'Cliente'
+        });
+        const refetch = await this.authService.getProfile(user.id);
+        profile = refetch.data;
+      }
 
+      const telefono = profile?.telefono?.trim();
+      if (!telefono) {
+        this.submitting = false;
+        this.phoneModalNumber = '';
+        this.showPhoneModal = true;
+        return;
+      }
+
+      // Si ya tiene teléfono registrado, agendar la cita con user.id garantizado
+      this.executeBooking(user.id);
+    } catch (err) {
+      console.error('Error checking profile telefono:', err);
+      this.executeBooking(user.id);
+    }
+  }
+
+  async savePhoneAndConfirm() {
+    const rawDigits = this.phoneModalNumber.replace(/\D/g, '');
+    if (!rawDigits || rawDigits.length < 7) {
+      this.toastService.warning('Por favor ingresa un número de teléfono válido');
+      return;
+    }
+
+    const fullPhone = `${this.selectedCountry.code}${rawDigits}`;
+    this.savingPhone = true;
+
+    // Obtener usuario autenticado de forma asíncrona
+    const user = await this.authService.getAuthenticatedUser();
+    if (!user) {
+      this.savingPhone = false;
+      this.showPhoneModal = false;
+      this.toastService.warning('Debes iniciar sesión para agendar tu cita.');
+      this.router.navigate(['/login']);
+      return;
+    }
+
+    try {
+      const { error } = await this.authService.updateProfile(user.id, { telefono: fullPhone });
+      if (error) {
+        this.toastService.error('No se pudo guardar el teléfono. Intenta nuevamente.');
+        console.error(error);
+        this.savingPhone = false;
+        return;
+      }
+
+      this.toastService.success('Número guardado correctamente');
+      this.showPhoneModal = false;
+      this.savingPhone = false;
+
+      // Complete reservation immediately con el ID autenticado
+      this.submitting = true;
+      this.executeBooking(user.id);
+    } catch (err) {
+      this.toastService.error('Error al actualizar el perfil');
+      console.error(err);
+      this.savingPhone = false;
+    }
+  }
+
+  closePhoneModal() {
+    if (this.savingPhone) return;
+    this.showPhoneModal = false;
+  }
+
+  private executeBooking(userId: string) {
     const appointment: Appointment = {
-      cliente_id: this.userInfo.id,
-      service_id: this.selectedServiceId,
-      barber_id: this.selectedBarber.id,
+      cliente_id: userId,
+      service_id: this.selectedServiceId!,
+      barber_id: this.selectedBarber!.id,
       fecha: this.selectedDate,
       hora: this.selectedTime,
       precio: this.selectedServicePrecio,
@@ -363,7 +467,7 @@ export class BookingComponent implements OnInit {
       error: (err) => {
         this.submitting = false;
         this.toastService.error('No se pudo confirmar tu cita. Intenta de nuevo.');
-        console.error(err);
+        console.error('Error creating appointment in Supabase:', err);
       }
     });
   }

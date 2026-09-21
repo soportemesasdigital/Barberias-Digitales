@@ -25,14 +25,19 @@ export class AppointmentsComponent implements OnInit {
     private router: Router
   ) { }
 
-  ngOnInit(): void {
-    this.authService.currentUser$.subscribe(user => {
-      if (user && user.role === 'client') {
-        this.loadAppointments(user.id);
-      } else {
-        this.loading = false;
-      }
-    });
+  async ngOnInit(): Promise<void> {
+    const authUser = await this.authService.getAuthenticatedUser();
+    if (authUser) {
+      this.loadAppointments(authUser.id);
+    } else {
+      this.authService.currentUser$.subscribe(user => {
+        if (user) {
+          this.loadAppointments(user.id);
+        } else {
+          this.loading = false;
+        }
+      });
+    }
   }
 
   loadAppointments(userId: string) {
